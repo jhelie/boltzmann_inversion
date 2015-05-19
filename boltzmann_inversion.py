@@ -24,7 +24,66 @@ git: https://github.com/jhelie/boltzmann_inversion
 This script the opposite of the log of densities. The densities in each column of the input
 file are normalised with respect to themselves.
 
-NB: for quick plotting with xmgrace first change NaN values in output file to 0.
+For quick plotting of the resulting xvg file with xmgrace first change NaN values to 0, or
+use the xvg_plot utility.
+
+[ NOTES ]
+
+It is important to understand the differences between kT and kcal.mol-1 or kJ.mol-1. These are not just 3
+different units to express energy but correspond to different scales.
+
+Joules and Calories
+-------------------
+
+Energy is fundamentally expressed in Joules (J) or kJ. By definition 1 Joule is the work done by a
+force of 1 N when the application point moves 1 meter in the direction of the force. It also corresponds
+to the energy provided by a power of 1 W during 1 s.
+
+Calories can also be used to express energy. 1 cal has been defined as the energy necessary to increase
+the temperature of 1 gram of water by 1 degree Celsius.
+
+Both Joule and calories are small units and usually expressed as kJ and kcal.
+
+1 kcal = 4.184 kJ 
+
+dimension of kT
+---------------
+
+By definition: k = R / Na where R is the gas constant and Na is the Avogadro constant and it can 
+therefore be thought of as a microscopic version of the gas constant.
+ -> PV = nRT where n is the number of moles
+ -> PV = NkT where N is the number of molecules
+
+R = 8.314 J.K-1.mol-1 and Na = 6.022 x 10^23 mol-1 and so:
+ -> k = 1.380 x 10-23 J.K-1
+ -> it follows that kT is in J and also an energy.
+ -> the value of "1 kT" intrinsically depends on the temperature...
+
+why is kT useful and what is its relationship with kJ.mol-1 and kcal.mol-1?
+---------------------------------------------------------------------------
+
+The Boltzmann distribution states that the probability of observing a MOLECULE in a state pi is
+proportional to the energy Gi of that state as per the relation:
+
+ -> pi ~ exp(- Gi / kT)
+
+So kT is a useful unit at the MICROSCOPIC level to express energy as a function of the THERMICALLY
+available energy. Plus the equiparition theorem tells us that the energy associated with each
+quadratic degree of freedom is kT / 2. However "kT"s cannot be converted into kJ.mol-1 or
+kcal.mol-1 as the dimensions are different and those units correspond to MACROSCOPIC measures of
+energy!
+
+However by multiplying a microscopic energy expressed in kT by the Avogadro constant Na we can
+extrapolate to which macroscopic energy (i.e. for a mole instead of a molecule) it corresponds.
+
+The rule of thumb "1 kT equals approximately 2.5 kJ.mol-1" is thus a conceptual shortcut linking two
+energy scales (not to mention it does not convey the temperature dependence).
+
+A few equivalences are worth remembering:
+
+ -> T = 298K (25C): kT x Na = 2.479 kJ.mol-1 = 0.593 kcal.mol-1
+ -> T = 310K (37C): kT x Na = 2.577 kJ.mol-1 = 0.616 kcal.mol-1
+ -> T = 323K (50C): kT x Na = 2.686 kJ.mol-1 = 0.642 kcal.mol-1
 
 [ USAGE ]
 
@@ -34,6 +93,8 @@ Option	      Default  	Description
 -o			: name of outptut file
 -col		1	: ignore the first X column(s) in the input file
 --comments	@,#	: lines starting with these characters will be considered as comment
+--units		kT	: units of input ('kT','kJ','kcal')
+--temp		323	: temperature in Kelvin
 
 Other options
 -----------------------------------------------------
@@ -47,6 +108,8 @@ parser.add_argument('-f', nargs=1, dest='xvgfilename', help=argparse.SUPPRESS, r
 parser.add_argument('-o', nargs=1, dest='output_file', default=["no"], help=argparse.SUPPRESS)
 parser.add_argument('--col', nargs=1, dest='col_start', default=[1], type=int, help=argparse.SUPPRESS)
 parser.add_argument('--comments', nargs=1, dest='comments', default=['@,#'], help=argparse.SUPPRESS)
+parser.add_argument('--units', dest='units', choices=['kT','kJ','kcal'], default=['kT'], help=argparse.SUPPRESS)
+parser.add_argument('--temp', nargs=1, dest='temp', default=[323], type=float, help=argparse.SUPPRESS)
 
 #other options
 parser.add_argument('--version', action='version', version='%(prog)s v' + version_nb, help=argparse.SUPPRESS)
@@ -61,6 +124,9 @@ args.xvgfilename = args.xvgfilename[0]
 args.output_file = args.output_file[0]
 args.col_start = args.col_start[0]
 args.comments = args.comments[0].split(',')
+args.temp = args.temp[0]
+if args.units != "kT":
+	args.units += ".mol-1"
 
 #=========================================================================================
 # import modules (doing it now otherwise might crash before we can display the help menu!)
@@ -135,9 +201,21 @@ def load_xvg():
 	data_density = data_density[:,args.col_start:]
 	s_species = s_species[args.col_start-1:]
 	nb_species = np.shape(data_density)[1]
+	
+	#normalise densities with respect to themselves
 	data_density /= np.sum(data_density, axis = 0)
+	
+	#calculate energy in kT and shift them so that the min is 0
 	data_energy = -np.log(data_density)
 	data_energy -= np.min(data_energy, axis = 0)
+	
+	#convert to different energy
+	if args.units == "'kJ.mol-1":
+		data_energy *= 8.3144621 * args.temp / float(1000)
+	elif args.units == "kcal.mol-1":
+		data_energy *= 8.3144621 * args.temp / float(1000 * 4.184)
+	
+	#change infinite values to NaN
 	data_energy[np.isinf(data_energy)] = np.nan
 	
 	return
@@ -152,7 +230,7 @@ def write_xvg():
 	#xvg metadata
 	output_xvg.write("@ title \"Relative free energies\"\n")
 	output_xvg.write("@ xaxis label \"z distance to bilayer center (Angstrom)\"\n")
-	output_xvg.write("@ yaxis label \"relative free energies (kT)\"\n")
+	output_xvg.write("@ yaxis label \"relative free energies (" + str(args.units) + ")\"\n")
 	output_xvg.write("@ autoscale ONREAD xaxes\n")
 	output_xvg.write("@ TYPE XY\n")
 	output_xvg.write("@ view 0.15, 0.15, 0.95, 0.85\n")
