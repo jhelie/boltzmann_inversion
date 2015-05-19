@@ -125,6 +125,7 @@ args.output_file = args.output_file[0]
 args.col_start = args.col_start[0]
 args.comments = args.comments[0].split(',')
 args.temp = args.temp[0]
+args.units = args.units[0]
 if args.units != "kT":
 	args.units += ".mol-1"
 
@@ -165,7 +166,7 @@ if not os.path.isfile(args.xvgfilename):
 	print "Error: file " + str(args.xvgfilename) + " not found."
 	sys.exit(1)
 if args.output_file == "no":
-	args.output_file = args.xvgfilename[:-4].split('/')[-1] + '_bi.xvg'
+	args.output_file = args.xvgfilename[:-4].split('/')[-1] + '_BI_' + str(args.units[:2]) + '.xvg'
 elif args.output_file[-3:] != 'xvg':
 	args.output_file += '.xvg'
 
@@ -192,7 +193,7 @@ def load_xvg():
 		line = lines[l_index]
 		if line[0] in args.comments:
 			tmp_nb_rows_to_skip += 1
-			if len(line.split("legend \"")) > 1:
+			if "legend \"" in line:
 				s_species.append(line.split("legend \"")[-1][:-2])
 	
 	#get data
@@ -240,8 +241,6 @@ def write_xvg():
 	output_xvg.write("@ legend 0.98, 0.8\n")
 	output_xvg.write("@ legend length " + str(nb_species) + "\n")
 	for s_index in range(0, nb_species):
-		#debug
-		print str(s_species[s_index])
 		output_xvg.write("@ s" + str(s_index) + " legend \"" + str(s_species[s_index]) + "\"\n")
 	#data
 	for x_index in range(0, np.shape(data_energy)[0]):
