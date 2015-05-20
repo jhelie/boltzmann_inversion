@@ -262,6 +262,6 @@ write_xvg()
 #=========================================================================================
 # exit
 #=========================================================================================
-print "\nFinished successfully! Check result in file '" + str(args.output_file)
+print "\nFinished successfully! Check result in file " + str(args.output_file)
 print ""
 sys.exit(0)
